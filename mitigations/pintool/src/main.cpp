@@ -1,6 +1,7 @@
 #include "pin.H"
 #include <iostream>
 
+// DBI anti-evasion + hooks
 #include "config.h"
 #include "memory.h"
 #include "hooks.h"
@@ -13,6 +14,10 @@
 #include "libdft/libdft_api.h"
 #include "libdft/tagmap.h"
 
+// ntdll.cpp: map between ordinal and syscall name
+extern CHAR* syscallIDs[MAXSYSCALLS];
+VOID EnumSyscalls();
+
 // we use TLS for now only to track state across syscall enter and exit
 TLS_KEY tls_key = INVALID_TLS_KEY;
 
@@ -23,7 +28,6 @@ BOOL _rwKnob;
 BOOL _leakKnob;
 BOOL _libdftKnob;
 #endif
-
 
 KNOB <BOOL> KnobNX(KNOB_MODE_WRITEONCE, "pintool",
 	"nx", "false", "enable NX protection");
@@ -48,16 +52,8 @@ INT32 Usage() {
 	return -1;
 }
 
-VOID pintoolConfig() {
-
-	Logging::LOGGING_Init();
-
-	// obtain a TLS key
-	tls_key = PIN_CreateThreadDataKey(NULL);
-	if (tls_key == INVALID_TLS_KEY) {
-		LOG_AR("Cannot initialize TLS");
-		PIN_ExitProcess(1);
-	}
+VOID antiDBIEvasionConfig() {
+	SokLogging::Init();
 
 #if USE_KNOBS
 	_leakKnob = KnobLeak.Value();
@@ -67,15 +63,25 @@ VOID pintoolConfig() {
 	_libdftKnob = KnobLibdft.Value();
 #endif
 
+	if (_rwKnob || _nxKnob) {
+		// obtain a TLS key
+		tls_key = PIN_CreateThreadDataKey(NULL);
+		if (tls_key == INVALID_TLS_KEY) {
+			LOG_AR("Cannot initialize TLS");
+			PIN_ExitProcess(1);
+		}
+	}
 }
 
 VOID FiniCallback(INT32 code, VOID *v) {
-	Logging::LOGGING_Shutdown();
+	SokLogging::Shutdown();
 }
 
 VOID OnThreadStart(THREADID tid, CONTEXT *ctxt, INT32, VOID *) {
-	HOOKS_SetTLSKey(tid);
-	MEMORY_OnThreadStart(ctxt);
+	if (_rwKnob || _nxKnob) {
+		HOOKS_SetTLSKey(tid);
+		MEMORY_OnThreadStart(ctxt);
+	}
 
 	if (_libdftKnob) {
 		thread_ctx_t *thread_ctx = libdft_thread_start(ctxt);
@@ -90,7 +96,9 @@ VOID OnThreadStart(THREADID tid, CONTEXT *ctxt, INT32, VOID *) {
 }
 
 VOID OnThreadFini(THREADID tid, const CONTEXT *ctxt, INT32, VOID *) {
-	libdft_thread_fini(ctxt);
+	if (_libdftKnob) {
+		libdft_thread_fini(ctxt);
+	}
 }
 
 VOID Instruction(INS ins, VOID *v) {
@@ -103,12 +111,29 @@ VOID Instruction(INS ins, VOID *v) {
 }
 
 VOID Image(IMG img, VOID* v) {
-	MEMORY_LoadImage(img);
+	if (_rwKnob || _nxKnob) {
+		MEMORY_LoadImage(img);
+	}
 }
 
 VOID ImageUnload(IMG img, VOID* v) {
-	MEMORY_UnloadImage(img);
+	if (_rwKnob || _nxKnob) {
+		MEMORY_UnloadImage(img);
+	}
 }
+
+VOID SyscallEntry(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std, void *v) {
+	if (_rwKnob || _nxKnob) {
+		HOOKS_SyscallEntry(thread_id, ctx, std);
+	}
+}
+
+VOID SyscallExit(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std, void *v) {
+	if (_rwKnob || _nxKnob) {
+		HOOKS_SyscallExit(thread_id, ctx, std);
+	}
+}
+
 
 // used for debugging purposes
 /*
@@ -141,35 +166,40 @@ int main(int argc, char *argv[]) {
 		return Usage();
 	}
 
-	//initialize some stuff
-	pintoolConfig();
+	// initialize some stuff
+	antiDBIEvasionConfig();
 
 	if (_rwKnob || _nxKnob) {
 		MEMORY_Init();
 	}
-
 	if (_leakKnob) {
 		FPU_Init();
 	}
 
-	// syscall instrumentation: PIN_AddSyscallEntryFunction, PIN_AddSyscallExitFunction
+	// syscall instrumentation
+	EnumSyscalls(); // parse ntdll for ordinals
+	PIN_AddSyscallEntryFunction(SyscallEntry, NULL);
+	PIN_AddSyscallExitFunction(SyscallExit, NULL);
+
+	// anti-evasion syscall hooks
 	HOOKS_Init();
 
 	// INS instrumentation
 	INS_AddInstrumentFunction(Instruction, NULL);
 
 	// IMG instrumentation
-	if (_rwKnob || _nxKnob) {
-		IMG_AddInstrumentFunction(Image, NULL);
-		IMG_AddUnloadFunction(ImageUnload, NULL);
-	}
+	IMG_AddInstrumentFunction(Image, NULL);
+	IMG_AddUnloadFunction(ImageUnload, NULL);
 
-	// used for debugging purposes
+	// use for debugging purposes
 	//PIN_AddContextChangeFunction(OnContextChange, NULL);
 	//PIN_AddInternalExceptionHandler(InternalExceptionHandler, NULL);
 
 	// events
 	PIN_AddThreadStartFunction(OnThreadStart, NULL);
+	PIN_AddThreadFiniFunction(OnThreadFini, NULL);
+
+	PIN_AddFiniFunction(FiniCallback, NULL);
 
 	// libdft initialization - we compare overheads in the paper
 	if (_libdftKnob) {
@@ -180,10 +210,7 @@ int main(int argc, char *argv[]) {
 		TRACE_AddInstrumentFunction(libdft_trace_inspect, NULL);
 		// verbose mode for following taint propagation
 		//INS_AddInstrumentFunction(instrumentForTaintCheck, NULL);
-		PIN_AddThreadFiniFunction(OnThreadFini, NULL);
 	}
-
-	PIN_AddFiniFunction(FiniCallback, NULL);
 
 	PIN_StartProgram();
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "pin.H"
+#include "config.h"
 
 #include "logging.h"
 
@@ -7,7 +8,6 @@ namespace W {
 	#include "windows.h"
 }
 
-#define MAXSYSCALLS		0x200	// this should be enough for Win7 (up to 419)
 #define SYSCALL_NUM_ARG	11		// at least for those that we might care about (maybe fewer?)
 
 extern TLS_KEY tls_key;
@@ -53,13 +53,13 @@ static syscall_hook sysEntryHooks[MAXSYSCALLS]; // entries NULL by default
 static syscall_hook sysExitHooks[MAXSYSCALLS];
 
 //binding between the ordinal of the syscall and the name of the syscall
-STATIC CHAR* syscallIDs[MAXSYSCALLS];
+//this component is useful also for other tools and we moved it to main.cpp
+extern CHAR* syscallIDs[MAXSYSCALLS];
 
 VOID HOOKS_Init();
-VOID HOOKS_EnumSyscalls();
 VOID HOOKS_AddSyscalls();
-VOID HOOKS_SyscallEntry(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std, void *v);
-VOID HOOKS_SyscallExit(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std, void *v);
+VOID HOOKS_SyscallEntry(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std);
+VOID HOOKS_SyscallExit(THREADID thread_id, CONTEXT *ctx, SYSCALL_STANDARD std);
 VOID HOOKS_SyscallGetArguments(CONTEXT *ctx, SYSCALL_STANDARD std, int count, ...);
 VOID HOOKS_SetTLSKey(THREADID tid);
 

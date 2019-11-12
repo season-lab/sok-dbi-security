@@ -66,7 +66,7 @@ VOID FPU_InstrumentINS(INS ins) {
 				IARG_END);
 				
 		}
-		else { //TODO optimize only for instructions that change FPU state?
+		else { // TODO optimize only for instructions that change FPU state?
 
 			INS_InsertCall(ins, IPOINT_AFTER,
 				(AFUNPTR)FPU_UpdateLastFpuIns,

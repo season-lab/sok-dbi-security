@@ -1,6 +1,8 @@
 #pragma once
 #include "pin.H"
 
+#define MAXSYSCALLS		0x200	// this should be enough for Win7 (up to 419)
+
 // hard-wired values can be used e.g. during testing
 #define USE_KNOBS 1
 

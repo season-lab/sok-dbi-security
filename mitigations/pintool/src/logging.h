@@ -8,17 +8,17 @@
 #define LOG_AR(fmt, ...) \
 	do { \
 		if (!LOG_BUILD) break; \
-		Logging::logMain(fmt"\n", __VA_ARGS__); \
+		SokLogging::logMain(fmt"\n", __VA_ARGS__); \
 	} while (0)
 
 
-class Logging {
+class SokLogging {
 
 public:
 	static FILE* mainLog;
 
-	static VOID LOGGING_Init();
-	static VOID LOGGING_Shutdown();
+	static VOID Init();
+	static VOID Shutdown();
 	static VOID logMain(const char * fmt, ...);
 
 };

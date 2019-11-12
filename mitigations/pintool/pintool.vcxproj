@@ -303,6 +303,7 @@
     <ClCompile Include="src\memory.cpp" />
     <ClCompile Include="src\libdft\tagmap.cpp" />
     <ClCompile Include="src\libdft\tag_traits.cpp" />
+    <ClCompile Include="src\ntdll.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />

@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-FILE* Logging::mainLog;
+FILE* SokLogging::mainLog;
 
 std::string getCurDateAndTime() {
 	time_t rawtime;
@@ -14,22 +14,22 @@ std::string getCurDateAndTime() {
 	return string(buffer);
 }
 
-VOID Logging::LOGGING_Init() {	
+VOID SokLogging::Init() {	
 	string path = string(LOGPATH);
 	mainLog = fopen(path.append(LOGNAME).c_str(), "a");
 	LOG_AR("Starting analysis...");
 }
 
-VOID Logging::LOGGING_Shutdown() {
-	fclose(Logging::mainLog);
+VOID SokLogging::Shutdown() {
+	fclose(SokLogging::mainLog);
 }
 
-VOID Logging::logMain(const char* fmt, ...) {
-	if (!Logging::mainLog) return; // TODO shall we quit Pin instead?
+VOID SokLogging::logMain(const char* fmt, ...) {
+	if (!SokLogging::mainLog) return; // TODO shall we quit Pin instead?
 	va_list args;
 	va_start(args, fmt);
-	vfprintf(Logging::mainLog, fmt, args);
+	vfprintf(SokLogging::mainLog, fmt, args);
 	va_end(args);
 
-	fflush(Logging::mainLog);
+	fflush(SokLogging::mainLog);
 }

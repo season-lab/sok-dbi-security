@@ -29,6 +29,9 @@
     <ClCompile Include="src\libdft\tagmap.cpp">
       <Filter>libdft</Filter>
     </ClCompile>
+    <ClCompile Include="src\ntdll.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source files">
